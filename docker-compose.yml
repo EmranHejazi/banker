@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: banker_db
+    restart: always
+    environment:
+      POSTGRES_DB: banker
+      POSTGRES_USER: banker
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banker -d banker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: banker_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://banker:password@postgres:5432/banker
+    ports:
+      - "8000:8000"
+
+  frontend:
+    container_name: banker_web
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app # bind mount for live reload
+      - /app/node_modules # so node_modules stays INSIDE container
+
+volumes:
+  postgres-data:
